@@ -23,6 +23,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 
+// Healthcheck simples
+app.get('/api/health', (_req, res) => res.status(200).json({ ok: true }));
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
   sessionManager.restoreAllSessions();
