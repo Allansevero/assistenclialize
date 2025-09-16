@@ -108,6 +108,7 @@ temp/
 # WhatsApp Web.js cache
 .wwebjs_cache/
 .wwebjs_auth/
+auth_info_baileys/
 
 # Database
 *.db

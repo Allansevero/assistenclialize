@@ -16,13 +16,19 @@ export function ConnectWhatsAppPage() {
   useEffect(() => {
     socket = io('http://localhost:3000');
     if (user) { socket.emit('join-room', user.id); }
-    socket.on('qr-code', (qr: string) => {
-      setQrCode(qr);
-      setStatus('Aguardando escaneamento...');
-    });
+    socket.on('qr-code', (qr: string) => { setQrCode(qr); setStatus('Aguardando escaneamento...'); });
     socket.on('session-ready', (data) => {
       toast.success(data.message);
-      setStatus('Conectado com sucesso! (Salvo em arquivo)');
+      setStatus('Conectado! Salvando no banco de dados...');
+      api.post(`/whatsapp/sessions/persist`, {}, { headers: { Authorization: `Bearer ${token}` } })
+        .then(() => {
+          toast.success('Sessão salva com sucesso no banco de dados!');
+          setStatus('Conectado e Salvo no DB!');
+        })
+        .catch(() => {
+          toast.error('Falha ao salvar a sessão no banco.');
+          setStatus('Conectado, mas falha ao salvar no DB.');
+        });
       setQrCode(null);
     });
     return () => { socket.disconnect(); };

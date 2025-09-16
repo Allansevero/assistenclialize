@@ -21,10 +21,8 @@ class BaileysConnectionService {
       if (qr) { this.io?.to(userId).emit('qr-code', qr); }
       if (connection === 'close') {
         const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-        console.log(`[${userId}] Conexão fechada por:`, lastDisconnect?.error, ', reconectando:', shouldReconnect);
         if (shouldReconnect) { this.createSession(userId); }
       } else if (connection === 'open') {
-        console.log(`[${userId}] Conexão aberta com sucesso!`);
         this.io?.to(userId).emit('session-ready', { message: 'Sessão conectada com sucesso!' });
       }
     });

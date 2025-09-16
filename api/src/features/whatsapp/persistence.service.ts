@@ -10,7 +10,7 @@ class PersistenceService {
   public static getInstance(): PersistenceService { if (!this.instance) { this.instance = new PersistenceService(); } return this.instance; }
 
   public async persistSession(userId: string) {
-    console.log(`[${userId}] [PERSIST] Iniciando persistência da sessão no banco de dados...`);
+    console.log(`[PERSIST] Iniciando persistência da sessão para ${userId}...`);
     const sessionFolder = `auth_info_baileys/${userId}`;
     try {
       const credsFilePath = path.resolve(sessionFolder, 'creds.json');
@@ -27,9 +27,9 @@ class PersistenceService {
           status: 'CONNECTED',
         },
       });
-      console.log(`[${userId}] [PERSIST] Sessão salva/atualizada com sucesso no banco de dados!`);
+      console.log(`[PERSIST] Sessão salva com sucesso no banco de dados!`);
     } catch (err) {
-      console.error(`[${userId}] [PERSIST] Falha ao ler ou salvar credenciais:`, err);
+      console.error(`[PERSIST] Falha ao ler ou salvar credenciais:`, err);
       throw new Error('Failed to persist session');
     }
   }
