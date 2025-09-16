@@ -54,7 +54,27 @@ class BaileysSessionManager {
         this.latestQrByUserId.delete(userId);
       }
     });
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', async () => {
+      try {
+        await saveCreds();
+        // Após salvar localmente, persiste no DB para não perder login
+        const credsFilePath = path.resolve(sessionFolder, 'creds.json');
+        const credsContent = await fs.readFile(credsFilePath, { encoding: 'utf-8' });
+        const credsJson = JSON.parse(credsContent);
+        await prisma.whatsappSession.upsert({
+          where: { assignedToId: userId },
+          update: { sessionData: credsJson, status: 'CONNECTED' },
+          create: {
+            name: `Sessão ${userId.substring(0, 5)}...`,
+            assignedToId: userId,
+            sessionData: credsJson,
+            status: 'CONNECTED',
+          },
+        });
+      } catch (err) {
+        console.error(`[${userId}] Falha ao persistir credenciais no DB após update:`, err);
+      }
+    });
   }
   
   // =================================================================
