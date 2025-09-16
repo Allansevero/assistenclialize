@@ -75,5 +75,27 @@ class BaileysSessionManager {
       orderBy: { name: 'asc' },
     });
   }
+
+  // Restaura sessões previamente persistidas no banco escrevendo o creds.json
+  // e inicializando a conexão do Baileys para cada usuário.
+  public async restoreAllSessions() {
+    const sessions = await prisma.whatsappSession.findMany({
+      where: { sessionData: { not: null }, assignedToId: { not: null } },
+      select: { assignedToId: true, sessionData: true },
+    });
+    for (const s of sessions) {
+      const userId = s.assignedToId as string;
+      const sessionFolder = path.resolve('auth_info_baileys', userId);
+      try {
+        await fs.mkdir(sessionFolder, { recursive: true });
+        const credsFilePath = path.resolve(sessionFolder, 'creds.json');
+        await fs.writeFile(credsFilePath, JSON.stringify(s.sessionData, null, 2), { encoding: 'utf-8' });
+        // Inicializa a sessão
+        await this.createSession(userId);
+      } catch (err) {
+        console.error(`[${userId}] Falha ao restaurar sessão:`, err);
+      }
+    }
+  }
 }
 export const sessionManager = BaileysSessionManager.getInstance();
