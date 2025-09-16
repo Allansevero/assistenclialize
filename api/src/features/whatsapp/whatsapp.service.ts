@@ -80,11 +80,12 @@ class BaileysSessionManager {
   // e inicializando a conexão do Baileys para cada usuário.
   public async restoreAllSessions() {
     const sessions = await prisma.whatsappSession.findMany({
-      where: { sessionData: { not: null }, assignedToId: { not: null } },
+      where: { sessionData: { not: null } },
       select: { assignedToId: true, sessionData: true },
     });
     for (const s of sessions) {
-      const userId = s.assignedToId as string;
+      const userId = s.assignedToId as string | null;
+      if (!userId) { continue; }
       const sessionFolder = path.resolve('auth_info_baileys', userId);
       try {
         await fs.mkdir(sessionFolder, { recursive: true });
