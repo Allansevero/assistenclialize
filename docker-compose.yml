@@ -1,0 +1,26 @@
+# Versão do Docker Compose que estamos usando
+version: '3.8'
+
+# Aqui definimos os "serviços" ou containers que queremos rodar
+services:
+  # Damos um nome ao nosso serviço de banco de dados: "db"
+  db:
+    # A imagem oficial do PostgreSQL na versão 15 que o Docker vai baixar
+    image: postgres:15
+    # Garante que o container reinicie automaticamente se houver alguma falha
+    restart: always
+    # Variáveis de ambiente para configurar o banco de dados
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: assistenclialize
+    # Mapeia a porta 5432 do container para a porta 5432 da sua máquina
+    ports:
+      - '5432:5432'
+    # Garante que os dados do banco não se percam se o container for recriado
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+# Define o volume que será usado para persistir os dados
+volumes:
+  postgres_data:

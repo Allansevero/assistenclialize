@@ -1,0 +1,59 @@
+import { useEffect, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { useAuthStore } from '../stores/auth.store';
+import { api } from '../lib/api';
+import QRCode from 'react-qr-code';
+import toast from 'react-hot-toast';
+import { Link } from 'react-router-dom';
+
+let socket: Socket;
+
+export function ConnectWhatsAppPage() {
+  const { user, token } = useAuthStore();
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [status, setStatus] = useState('Ocioso');
+
+  useEffect(() => {
+    socket = io('http://localhost:3000');
+    if (user) { socket.emit('join-room', user.id); }
+    socket.on('qr-code', (qr: string) => {
+      setQrCode(qr);
+      setStatus('Aguardando escaneamento...');
+    });
+    socket.on('session-ready', (data) => {
+      toast.success(data.message);
+      setStatus('Conectado com sucesso! (Salvo em arquivo)');
+      setQrCode(null);
+    });
+    return () => { socket.disconnect(); };
+  }, [user, token]);
+
+  async function handleStartConnection() {
+    setStatus('Iniciando conexão...');
+    setQrCode(null);
+    try {
+      await api.post('/whatsapp/sessions/connect', {}, { headers: { Authorization: `Bearer ${token}` } });
+      setStatus('Aguardando o QR Code...');
+    } catch (error) {
+      toast.error('Não foi possível iniciar a conexão.');
+      setStatus('Erro.');
+    }
+  }
+
+  return (
+    <div className="p-8">
+      <Link to="/dashboard">&larr; Voltar</Link>
+      <h1 className="text-2xl font-bold mt-4">Conectar Nova Conta de WhatsApp</h1>
+      <div className="mt-4 p-4 border rounded-md">
+        <p><b>Status:</b> {status}</p>
+        <button onClick={handleStartConnection} disabled={status !== 'Ocioso' && status !== 'Erro.'}>Iniciar Conexão</button>
+        {qrCode && (
+          <div className="mt-6">
+            <p>Escaneie o QR Code:</p>
+            <div style={{ background: 'white', padding: '16px' }}><QRCode value={qrCode} size={256} /></div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

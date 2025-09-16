@@ -1,0 +1,46 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String
+  password  String
+  role      UserRole  @default(MEMBER)
+  teamId    String?
+  team      Team?     @relation(fields: [teamId], references: [id])
+  sessions  WhatsappSession[]
+}
+
+model Team {
+  id      String   @id @default(cuid())
+  name    String
+  ownerId String   @unique
+  members User[]
+}
+
+// --- MODELO WhatsappSession ATUALIZADO E COMPLETO ---
+model WhatsappSession {
+  id            String    @id @default(cuid())
+  name          String?   // Nome customizado, ex: "WhatsApp Vendas 1"
+  status        String    @default("DISCONNECTED") // Ex: CONNECTED, DISCONNECTED
+  
+  // O campo mais importante: onde guardamos a chave mestra da sessão.
+  // O tipo Json é específico para bancos como o PostgreSQL.
+  sessionData   Json?
+  
+  // Relação com o usuário que está designado para esta sessão
+  assignedToId  String?
+  assignedTo    User?     @relation(fields: [assignedToId], references: [id])
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
