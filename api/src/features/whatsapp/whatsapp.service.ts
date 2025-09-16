@@ -21,8 +21,13 @@ class BaileysSessionManager {
   // =================================================================
   // CÓDIGO DE CONEXÃO ESTÁVEL - SEM NENHUMA ALTERAÇÃO
   // =================================================================
-  public async createSession(userId: string) {
+  public async createSession(userId: string, options?: { force?: boolean }) {
     const sessionFolder = `auth_info_baileys/${userId}`;
+    if (options?.force) {
+      try {
+        await fs.rm(sessionFolder, { recursive: true, force: true });
+      } catch {}
+    }
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
     const sock = makeWASocket({ auth: state, printQRInTerminal: false });
     sock.ev.on('connection.update', (update) => {

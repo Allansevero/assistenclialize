@@ -7,7 +7,8 @@ import { sessionManager } from './whatsapp.service';
 export const connectWhatsappController = (req: AuthRequest, res: Response) => {
     try {
         const userId = req.user!.userId;
-        sessionManager.createSession(userId);
+        const force = String(req.query.force || '').toLowerCase() === 'true';
+        sessionManager.createSession(userId, { force });
         res.status(200).json({ message: 'Processo de conexão iniciado.' });
     } catch (error) {
         res.status(500).json({ message: 'Erro ao iniciar a sessão.' });
