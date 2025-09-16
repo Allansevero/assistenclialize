@@ -15,6 +15,7 @@ const prisma = new PrismaClient();
 class BaileysSessionManager {
   private static instance: BaileysSessionManager;
   public io: SocketIOServer | null = null;
+  private latestQrByUserId: Map<string, string> = new Map();
   private constructor() {}
   public static getInstance(): BaileysSessionManager { if (!this.instance) { this.instance = new BaileysSessionManager(); } return this.instance; }
 
@@ -32,7 +33,10 @@ class BaileysSessionManager {
     const sock = makeWASocket({ auth: state, printQRInTerminal: false });
     sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update;
-      if (qr) { this.io?.to(userId).emit('qr-code', qr); }
+      if (qr) {
+        this.latestQrByUserId.set(userId, qr);
+        this.io?.to(userId).emit('qr-code', qr);
+      }
       if (connection === 'close') {
         const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
         console.log(`[${userId}] Conexão fechada por:`, lastDisconnect?.error, ', reconectando:', shouldReconnect);
@@ -40,6 +44,7 @@ class BaileysSessionManager {
       } else if (connection === 'open') {
         console.log(`[${userId}] Conexão aberta com sucesso!`);
         this.io?.to(userId).emit('session-ready', { message: 'Sessão conectada com sucesso!' });
+        this.latestQrByUserId.delete(userId);
       }
     });
     sock.ev.on('creds.update', saveCreds);
@@ -102,6 +107,10 @@ class BaileysSessionManager {
         console.error(`[${userId}] Falha ao restaurar sessão:`, err);
       }
     }
+  }
+
+  public getLatestQr(userId: string): string | null {
+    return this.latestQrByUserId.get(userId) ?? null;
   }
 }
 export const sessionManager = BaileysSessionManager.getInstance();

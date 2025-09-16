@@ -34,3 +34,13 @@ export const listSessionsController = async (req: AuthRequest, res: Response) =>
     res.status(500).json({ message: 'Erro ao listar sessões.' });
   }
 };
+
+export const latestQrController = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const qr = sessionManager.getLatestQr(userId);
+    res.status(200).json({ qr });
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao obter QR.' });
+  }
+};

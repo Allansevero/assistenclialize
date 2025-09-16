@@ -19,6 +19,17 @@ export function ConnectWhatsAppPage() {
     socket = io('http://localhost:3000');
     if (user) { socket.emit('join-room', user.id); }
     socket.on('qr-code', (qr: string) => { setQrCode(qr); setStatus('Aguardando escaneamento...'); });
+    // Pull de QR como fallback
+    const interval = setInterval(async () => {
+      if (!user || status === 'Conectado!' || status.startsWith('Conectado')) return;
+      try {
+        const { data } = await api.get('/whatsapp/sessions/latest-qr', { headers: { Authorization: `Bearer ${token}` } });
+        if (data?.qr) {
+          setQrCode(data.qr);
+          if (!status.toLowerCase().includes('aguardando')) setStatus('Aguardando escaneamento...');
+        }
+      } catch {}
+    }, 2000);
     
     socket.on('session-ready', (data) => {
       toast.success(data.message);
@@ -37,7 +48,7 @@ export function ConnectWhatsAppPage() {
       setQrCode(null);
     });
 
-    return () => { socket.disconnect(); };
+    return () => { clearInterval(interval); socket.disconnect(); };
   }, [user, token]);
 
   async function handleStartConnection(force: boolean = true) {
