@@ -1,143 +1,107 @@
-// /api/src/features/whatsapp/whatsapp.service.ts
-
 import makeWASocket, {
   DisconnectReason,
+  fetchLatestBaileysVersion,
+  jidNormalizedUser,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
-import { Server as SocketIOServer } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
+import pino from 'pino';
 import fs from 'fs/promises';
 import path from 'path';
+import { socketManager } from '../../services/socket.manager';
 
 const prisma = new PrismaClient();
+const logger = pino({ level: 'debug' });
 
-class BaileysSessionManager {
-  private static instance: BaileysSessionManager;
-  public io: SocketIOServer | null = null;
-  private latestQrByUserId: Map<string, string> = new Map();
-  private constructor() {}
-  public static getInstance(): BaileysSessionManager { if (!this.instance) { this.instance = new BaileysSessionManager(); } return this.instance; }
+class SessionManager {
+    private static instance: SessionManager;
+    private clients: Map<string, any> = new Map();
 
-  // =================================================================
-  // CÓDIGO DE CONEXÃO ESTÁVEL - SEM NENHUMA ALTERAÇÃO
-  // =================================================================
-  public async createSession(userId: string, options?: { force?: boolean }) {
-    const sessionFolder = `auth_info_baileys/${userId}`;
-    if (options?.force) {
-      try {
-        await fs.rm(sessionFolder, { recursive: true, force: true });
-      } catch {}
-      // Zera sessionData no banco para garantir que um novo QR seja emitido
-      try {
-        await prisma.whatsappSession.updateMany({
-          where: { assignedToId: userId },
-          data: { sessionData: null, status: 'DISCONNECTED' },
+    private constructor() { }
+    public static getInstance(): SessionManager {
+        if (!this.instance) { this.instance = new SessionManager(); }
+        return this.instance;
+    }
+    
+    public async startNewSession(userId: string, sessionName: string = 'Nova Sessão') {
+        const session = await prisma.whatsappSession.create({
+            data: { name: sessionName, assignedToId: userId, status: 'INITIALIZING' }
         });
-      } catch {}
+        this.initializeSocket(session.id, userId);
+        return session;
     }
-    const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
-    const sock = makeWASocket({ auth: state, printQRInTerminal: false });
-    sock.ev.on('connection.update', (update) => {
-      const { connection, lastDisconnect, qr } = update;
-      if (qr) {
-        this.latestQrByUserId.set(userId, qr);
-        this.io?.to(userId).emit('qr-code', qr);
-      }
-      if (connection === 'close') {
-        const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-        console.log(`[${userId}] Conexão fechada por:`, lastDisconnect?.error, ', reconectando:', shouldReconnect);
-        if (shouldReconnect) { this.createSession(userId); }
-      } else if (connection === 'open') {
-        console.log(`[${userId}] Conexão aberta com sucesso!`);
-        this.io?.to(userId).emit('session-ready', { message: 'Sessão conectada com sucesso!' });
-        this.latestQrByUserId.delete(userId);
-      }
-    });
-    sock.ev.on('creds.update', async () => {
-      try {
-        await saveCreds();
-        // Após salvar localmente, persiste no DB para não perder login
-        const credsFilePath = path.resolve(sessionFolder, 'creds.json');
-        const credsContent = await fs.readFile(credsFilePath, { encoding: 'utf-8' });
-        const credsJson = JSON.parse(credsContent);
-        await prisma.whatsappSession.upsert({
-          where: { assignedToId: userId },
-          update: { sessionData: credsJson, status: 'CONNECTED' },
-          create: {
-            name: `Sessão ${userId.substring(0, 5)}...`,
-            assignedToId: userId,
-            sessionData: credsJson,
-            status: 'CONNECTED',
-          },
+
+    private async initializeSocket(sessionId: string, userId: string) {
+        if (this.clients.has(sessionId)) return;
+        logger.info(`[${sessionId}] Inicializando socket...`);
+
+        const sessionDir = `auth_info_baileys/session-${sessionId}`;
+        const credsFile = path.join(sessionDir, 'creds.json');
+
+        try {
+            const sessionFromDb = await prisma.whatsappSession.findUnique({ where: { id: sessionId } });
+            if (sessionFromDb?.sessionData) {
+                await fs.mkdir(sessionDir, { recursive: true });
+                await fs.writeFile(credsFile, JSON.stringify(sessionFromDb.sessionData));
+                logger.info(`[${sessionId}] Sessão restaurada do DB para o arquivo.`);
+            }
+        } catch (e) {
+            logger.error(e, `[${sessionId}] Falha ao restaurar sessão do DB.`);
+        }
+
+        const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+        const { version } = await fetchLatestBaileysVersion();
+        
+        const sock = makeWASocket({ version, auth: state, printQRInTerminal: false, logger });
+        this.clients.set(sessionId, sock);
+
+        sock.ev.on('creds.update', async () => {
+            await saveCreds();
+            try {
+                const creds = await fs.readFile(credsFile, { encoding: 'utf-8' });
+                await prisma.whatsappSession.update({
+                    where: { id: sessionId },
+                    data: { sessionData: JSON.parse(creds) },
+                });
+                logger.info(`[${sessionId}] Credenciais sincronizadas para o DB.`);
+            } catch (e) {
+                logger.error(e, `[${sessionId}] Falha ao sincronizar credenciais para o DB.`);
+            }
         });
-      } catch (err) {
-        console.error(`[${userId}] Falha ao persistir credenciais no DB após update:`, err);
-      }
-    });
-  }
-  
-  // =================================================================
-  // NOVA FUNÇÃO DE PERSISTÊNCIA - SEPARADA E COM CAMINHO CORRIGIDO
-  // =================================================================
-  public async persistSession(userId: string) {
-    console.log(`[${userId}] [PERSIST] Iniciando persistência da sessão no banco de dados...`);
-    const sessionFolder = `auth_info_baileys/${userId}`;
-    try {
-      const credsFilePath = path.resolve(sessionFolder, 'creds.json');
-      const credsContent = await fs.readFile(credsFilePath, { encoding: 'utf-8' });
-      const credsJson = JSON.parse(credsContent);
 
-      await prisma.whatsappSession.upsert({
-        where: { assignedToId: userId },
-        update: { sessionData: credsJson, status: 'CONNECTED' },
-        create: {
-          name: `Sessão ${userId.substring(0, 5)}...`,
-          assignedToId: userId,
-          sessionData: credsJson,
-          status: 'CONNECTED',
-        },
-      });
-      console.log(`[${userId}] [PERSIST] Sessão salva/atualizada com sucesso no banco de dados!`);
-    } catch (err) {
-      console.error(`[${userId}] [PERSIST] Falha ao ler ou salvar credenciais no banco de dados:`, err);
-      throw new Error('Failed to persist session');
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
+            if (qr) {
+                socketManager.emitToUser(userId, 'qr-code', { sessionId, qr });
+                await prisma.whatsappSession.update({ where: { id: sessionId }, data: { status: 'AWAITING_QR' } });
+            }
+            if (connection === 'close') {
+                const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+                this.clients.delete(sessionId);
+                if (statusCode !== DisconnectReason.loggedOut) {
+                    this.initializeSocket(sessionId, userId);
+                } else {
+                    await prisma.whatsappSession.update({ where: { id: sessionId }, data: { status: 'DISCONNECTED', sessionData: null } });
+                    await fs.rm(sessionDir, { recursive: true, force: true });
+                }
+            } else if (connection === 'open') {
+                await prisma.whatsappSession.update({ where: { id: sessionId }, data: { status: 'CONNECTED' } });
+                socketManager.emitToUser(userId, 'session-status', { sessionId, status: 'CONNECTED' });
+            }
+        });
     }
-  }
 
-  public async listSessions(userId: string) {
-    return prisma.whatsappSession.findMany({
-      where: { assignedToId: userId },
-      select: { id: true, name: true, status: true },
-      orderBy: { name: 'asc' },
-    });
-  }
-
-  // Restaura sessões previamente persistidas no banco escrevendo o creds.json
-  // e inicializando a conexão do Baileys para cada usuário.
-  public async restoreAllSessions() {
-    const sessions = await prisma.whatsappSession.findMany({
-      where: { sessionData: { not: null } },
-      select: { assignedToId: true, sessionData: true },
-    });
-    for (const s of sessions) {
-      const userId = s.assignedToId as string | null;
-      if (!userId) { continue; }
-      const sessionFolder = path.resolve('auth_info_baileys', userId);
-      try {
-        await fs.mkdir(sessionFolder, { recursive: true });
-        const credsFilePath = path.resolve(sessionFolder, 'creds.json');
-        await fs.writeFile(credsFilePath, JSON.stringify(s.sessionData, null, 2), { encoding: 'utf-8' });
-        // Inicializa a sessão
-        await this.createSession(userId);
-      } catch (err) {
-        console.error(`[${userId}] Falha ao restaurar sessão:`, err);
-      }
+    public async restoreAllSessions() {
+        logger.info('[SessionManager] Restaurando todas as sessões do banco de dados...');
+        const sessions = await prisma.whatsappSession.findMany({
+            where: { OR: [{status: 'CONNECTED'}, {status: 'AWAITING_QR'}] }
+        });
+        logger.info(`[SessionManager] ${sessions.length} sessões encontradas para restaurar.`);
+        for (const session of sessions) {
+            this.initializeSocket(session.id, session.assignedToId);
+        }
     }
-  }
-
-  public getLatestQr(userId: string): string | null {
-    return this.latestQrByUserId.get(userId) ?? null;
-  }
 }
-export const sessionManager = BaileysSessionManager.getInstance();
+
+export const sessionManager = SessionManager.getInstance();

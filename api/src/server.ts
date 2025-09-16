@@ -12,8 +12,6 @@ const app = express();
 const server = http.createServer(app);
 
 socketManager.initialize(server);
-// Conecta o Socket.IO do servidor ao gerenciador de sessões (para emitir QR/status)
-sessionManager.io = socketManager.io;
 
 const PORT = process.env.PORT || 3000;
 app.use(cors({ origin: '*' }));
@@ -25,6 +23,5 @@ app.use('/api/whatsapp', whatsappRoutes);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
-  // Só restaura após termos o io conectado
   sessionManager.restoreAllSessions();
 });
