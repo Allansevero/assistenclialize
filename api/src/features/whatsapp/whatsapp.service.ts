@@ -28,6 +28,13 @@ class BaileysSessionManager {
       try {
         await fs.rm(sessionFolder, { recursive: true, force: true });
       } catch {}
+      // Zera sessionData no banco para garantir que um novo QR seja emitido
+      try {
+        await prisma.whatsappSession.updateMany({
+          where: { assignedToId: userId },
+          data: { sessionData: null, status: 'DISCONNECTED' },
+        });
+      } catch {}
     }
     const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
     const sock = makeWASocket({ auth: state, printQRInTerminal: false });
