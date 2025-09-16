@@ -12,6 +12,8 @@ const app = express();
 const server = http.createServer(app);
 
 socketManager.initialize(server);
+// Garante que o gerenciador de sessões possa emitir eventos via Socket.IO
+sessionManager.io = socketManager.io;
 
 const PORT = process.env.PORT || 3000;
 app.use(cors({ origin: '*' }));
