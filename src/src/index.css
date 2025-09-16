@@ -1,3 +1,3 @@
-/* O sistema de estilização foi completamente removido para eliminar
-   erros de build e focar na lógica da aplicação.
-*/
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

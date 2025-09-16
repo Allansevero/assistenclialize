@@ -214,4 +214,107 @@ export function ConnectWhatsAppPage() {
 EOF
 echo "  -> ConnectWhatsAppPage.tsx (Atualizado)"
 echo ""
-echo "--- SUCESSO! A arquitetura final foi implementada. ---"
+echo "--- SUCESSO! A arquitetura final foi implementada. ---"#!/bin/bash
+
+echo "--- CORRIGINDO NOMES DE VARIÁVEIS APÓS A REESTRUTURAÇÃO ---"
+echo ""
+cd api
+
+# --- Passo 1: Corrigir o Controller ---
+echo "[1/2] Atualizando o whatsapp.controller.ts..."
+cat << 'EOF' > src/features/whatsapp/whatsapp.controller.ts
+import { Response } from 'express';
+import { AuthRequest } from '../../middleware/auth.middleware';
+import { PrismaClient } from '@prisma/client';
+import { connectionService } from './whatsapp.service'; // NOME CORRIGIDO AQUI
+import { persistenceService } from './persistence.service';
+
+const prisma = new PrismaClient();
+
+export const connectWhatsappController = (req: AuthRequest, res: Response) => {
+    try {
+        const userId = req.user!.userId;
+        // Chama o serviço pelo nome correto
+        connectionService.createSession(userId);
+        res.status(200).json({ message: 'Processo de conexão iniciado.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao iniciar a sessão.' });
+    }
+};
+
+export const persistSessionController = async (req: AuthRequest, res: Response) => {
+    try {
+        const userId = req.user!.userId;
+        await persistenceService.persistSession(userId);
+        res.status(200).json({ message: 'Sessão persistida com sucesso.'});
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao persistir a sessão.'});
+    }
+};
+
+export const listSessionsController = async (req: AuthRequest, res: Response) => {
+    try {
+        const userId = req.user!.userId;
+        const sessions = await prisma.whatsappSession.findMany({ where: { assignedToId: userId }, select: { id: true, name: true, status: true } });
+        res.status(200).json(sessions);
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao listar sessões.' });
+    }
+};
+EOF
+echo "  -> Controller corrigido."
+echo ""
+
+# --- Passo 2: Corrigir o Servidor Principal ---
+echo "[2/2] Atualizando o server.ts..."
+cat << 'EOF' > src/server.ts
+import express from 'express';
+import cors from 'cors';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+
+import authRoutes from './features/auth/auth.routes';
+import teamRoutes from './features/teams/teams.routes';
+import whatsappRoutes from './features/whatsapp/whatsapp.routes';
+import { connectionService } from './features/whatsapp/whatsapp.service'; // NOME CORRIGIDO AQUI
+
+const app = express();
+const server = http.createServer(app);
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    callback(null, true);
+  },
+};
+
+const io = new SocketIOServer(server, { cors: corsOptions });
+
+// Usa o serviço com o nome correto
+connectionService.io = io;
+
+const PORT = process.env.PORT || 3000;
+
+app.use(cors(corsOptions));
+app.use(express.json());
+
+app.use('/api/auth', authRoutes);
+app.use('/api/teams', teamRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
+
+io.on('connection', (socket) => {
+  console.log(`[Socket.IO] Novo cliente conectado: ${socket.id}`);
+  socket.on('join-room', (userId) => {
+    socket.join(userId);
+  });
+  socket.on('disconnect', () => {
+    console.log(`[Socket.IO] Cliente desconectado: ${socket.id}`);
+  });
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Servidor rodando em http://localhost:${PORT} e acessível na rede local`);
+});
+EOF
+echo "  -> server.ts corrigido."
+echo ""
+echo "--- SUCESSO! AS REFERÊNCIAS FORAM ALINHADAS. ---"

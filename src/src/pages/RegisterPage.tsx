@@ -33,12 +33,12 @@ export function RegisterPage() {
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
         <h2 className="text-2xl font-bold text-center">Criar sua Conta</h2>
         <form onSubmit={handleSubmit(handleRegister)} className="space-y-4">
-          <div><label htmlFor="name">Nome</label><input id="name" type="text" {...register('name')} className="w-full px-3 py-2 mt-1 border rounded-md" />{errors.name && <span className="text-red-500 text-sm">{errors.name.message}</span>}</div>
-          <div><label htmlFor="email">Email</label><input id="email" type="email" {...register('email')} className="w-full px-3 py-2 mt-1 border rounded-md" />{errors.email && <span className="text-red-500 text-sm">{errors.email.message}</span>}</div>
-          <div><label htmlFor="password">Senha</label><input id="password" type="password" {...register('password')} className="w-full px-3 py-2 mt-1 border rounded-md" />{errors.password && <span className="text-red-500 text-sm">{errors.password.message}</span>}</div>
-          <div><button type="submit" disabled={isSubmitting} className="w-full px-4 py-2 font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-indigo-300">{isSubmitting ? 'Registrando...' : 'Registrar'}</button></div>
+          <div><label htmlFor="name" className="block text-sm font-medium text-gray-700">Nome</label><input id="name" type="text" {...register('name')} className="w-full px-3 py-2 mt-1 border rounded-md" />{errors.name && <span className="text-red-500 text-sm">{errors.name.message}</span>}</div>
+          <div><label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label><input id="email" type="email" {...register('email')} className="w-full px-3 py-2 mt-1 border rounded-md" />{errors.email && <span className="text-red-500 text-sm">{errors.email.message}</span>}</div>
+          <div><label htmlFor="password" className="block text-sm font-medium text-gray-700">Senha</label><input id="password" type="password" {...register('password')} className="w-full px-3 py-2 mt-1 border rounded-md" />{errors.password && <span className="text-red-500 text-sm">{errors.password.message}</span>}</div>
+          <div><button type="submit" disabled={isSubmitting} className="w-full px-4 py-2 font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-blue-300">{isSubmitting ? 'Registrando...' : 'Registrar'}</button></div>
         </form>
-        <p className="text-sm text-center">Já tem uma conta?{' '}<Link to="/login" className="font-medium text-indigo-600">Faça Login</Link></p>
+        <p className="text-sm text-center text-gray-600">Já tem uma conta?{' '}<Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">Faça Login</Link></p>
       </div>
     </div>
   );

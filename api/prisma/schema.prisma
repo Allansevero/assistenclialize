@@ -15,7 +15,7 @@ model User {
   role      UserRole  @default(MEMBER)
   teamId    String?
   team      Team?     @relation(fields: [teamId], references: [id])
-  sessions  WhatsappSession[]
+  sessions  WhatsappSession[] @relation("UserSessions")
 }
 
 model Team {
@@ -25,19 +25,15 @@ model Team {
   members User[]
 }
 
-// --- MODELO WhatsappSession ATUALIZADO E COMPLETO ---
 model WhatsappSession {
-  id            String    @id @default(cuid())
-  name          String?   // Nome customizado, ex: "WhatsApp Vendas 1"
-  status        String    @default("DISCONNECTED") // Ex: CONNECTED, DISCONNECTED
-  
-  // O campo mais importante: onde guardamos a chave mestra da sessão.
-  // O tipo Json é específico para bancos como o PostgreSQL.
-  sessionData   Json?
-  
-  // Relação com o usuário que está designado para esta sessão
-  assignedToId  String?
-  assignedTo    User?     @relation(fields: [assignedToId], references: [id])
+  id                String    @id @default(cuid())
+  name              String?
+  status            String    @default("DISCONNECTED")
+  sessionData       Json?
+  profilePictureUrl String?   // <-- NOVO CAMPO ADICIONADO AQUI
+
+  assignedToId  String
+  assignedTo    User      @relation("UserSessions", fields: [assignedToId], references: [id])
 }
 
 enum UserRole {
